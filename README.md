@@ -10,7 +10,7 @@ We provide the implementation for two different libraries: `keras`, `tensorflow`
 Please consider citing this work using this BibTeX entry
 
 ```bibtex
-@inproceedings{hussein2018timeception,
+@inproceedings{hussein2019videograph,
   title     = {VideoGraph: Recognizing Minutes-Long Human Activities in Videos},
   author    = {Hussein, Noureldien and Gavves, Efstratios and Smeulders, Arnold WM},
   booktitle = {ICCV Workshop on Scene Graph Representation and Learning},
