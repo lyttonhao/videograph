@@ -54,7 +54,7 @@ def train_model_videograph():
 
     model_type = 'i3d_rgb'
     feature_type = 'mixed_5c'
-    n_centroids = 128
+    n_nodes = 128
     n_timesteps = 64
     n_frames_per_segment = 8
     n_frames_per_video = n_timesteps * n_frames_per_segment
@@ -65,11 +65,11 @@ def train_model_videograph():
     model_name = 'classifier_%s' % (utils.timestamp())
     model_root_path = Pth('EPIC-Kitchens/models')
 
-    centroids_path = Pth('EPIC-Kitchens/features/centroids_random_%d_centroids.pkl', (n_centroids,))
+    nodes_path = Pth('EPIC-Kitchens/features/nodes_random_%d.pkl', (n_nodes,))
     features_path = Pth('EPIC-Kitchens/features/features_i3d_mixed_5c_%d_frames.h5', (n_frames_per_video,))
     n_feat_maps, feat_map_side_dim = utils.get_model_feat_maps_info(model_type, feature_type)
     input_shape = (None, n_timesteps, feat_map_side_dim, feat_map_side_dim, n_feat_maps)
-    centroids = utils.pkl_load(centroids_path)
+    nodes = utils.pkl_load(nodes_path)
 
     print ('--- start time')
     print (datetime.datetime.now())
@@ -77,7 +77,7 @@ def train_model_videograph():
     # building the model
     print('... building model %s' % (model_name))
     t1 = time.time()
-    model = __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centroids, n_classes, input_shape)
+    model = __load_model_videograph(nodes, n_classes, input_shape)
     t2 = time.time()
     duration = t2 - t1
     print (model.summary(line_length=130, positions=None, print_fn=None))
@@ -111,7 +111,7 @@ def train_model_videograph():
     print ('--- finish time')
     print (datetime.datetime.now())
 
-def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centroids, n_classes, input_shape_x):
+def __load_model_videograph(nodes, n_classes, input_shape_x):
     """
     Model
     """
@@ -123,7 +123,7 @@ def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centr
     optimizer = Adam(lr=0.01, epsilon=1e-8)
     optimizer = Adam(lr=0.01, epsilon=1e-4)
 
-    # per-layer kernel size and max pooling for centroids and timesteps
+    # per-layer kernel size and max pooling for nodes and timesteps
     n_graph_layers = 2
 
     # time kernel
@@ -139,11 +139,11 @@ def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centr
     s_kernel_size = 2
     s_kernel_size = 1
 
-    n_centroids, _ = centroids.shape
+    n_nodes, _ = nodes.shape
 
     _, n_timesteps, side_dim, side_dim, n_channels_in = input_shape_x
     t_input_x = Input(shape=(n_timesteps, side_dim, side_dim, n_channels_in), name='input_x')  # (None, 64, 1024)
-    t_input_n = Input(tensor=tf.constant(centroids, dtype=tf.float32), name='input_n')  # (1, 100, 1024)
+    t_input_n = Input(tensor=tf.constant(nodes, dtype=tf.float32), name='input_n')  # (1, 100, 1024)
     tensor = t_input_x
 
     # spatial convolution
@@ -160,7 +160,7 @@ def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centr
     # graph embedding
     tensor = videograph.graph_embedding(tensor, n_graph_layers, n_avg_size, n_kernel_size, t_kernel_size, n_max_size, t_max_size)  # (N, 100, 64, 7, 7, 1024)
 
-    # centroid pooling
+    # node pooling
     tensor = MeanLayer(axis=(1,), name='global_pool_n')(tensor)
 
     # temporal pooling

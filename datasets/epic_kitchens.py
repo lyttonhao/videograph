@@ -761,25 +761,25 @@ def _901_extract_features_i3d():
 
 # region Centroids
 
-def _602_generate_centroids(n_centroids, n_dims):
+def _602_generate_nodes(n_nodes, n_dims):
     pass
 
-    c1_path = Pth('EPIC-Kitchens/features/centroids_random_%d_centroids.pkl', (n_centroids,))
-    c2_path = Pth('EPIC-Kitchens/features/centroids_sobol_%d_centroids.pkl', (n_centroids,))
+    n1_path = Pth('EPIC-Kitchens/features/nodes_random_%d.pkl', (n_nodes,))
+    n2_path = Pth('EPIC-Kitchens/features/nodes_sobol_%d.pkl', (n_nodes,))
 
-    # centroids as random vectors
-    c1 = np.random.rand(n_centroids, n_dims)
+    # nodes as random vectors
+    n1 = np.random.rand(n_nodes, n_dims)
 
-    # centroids as sobol sequence
-    c2 = sobol.sobol_generate(n_dims, n_centroids)
-    c2 = np.array(c2)
+    # nodes as sobol sequence
+    n2 = sobol.sobol_generate(n_dims, n_nodes)
+    n2 = np.array(n2)
 
-    print c1.shape
-    print c2.shape
+    print n1.shape
+    print n2.shape
 
-    # save centroids
-    utils.pkl_dump(c1, c1_path)
-    utils.pkl_dump(c2, c2_path)
+    # save nodes
+    utils.pkl_dump(n1, n1_path)
+    utils.pkl_dump(n2, n2_path)
 
 # endregion
 
