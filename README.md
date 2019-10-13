@@ -55,7 +55,6 @@ Overview diagram of the proposed VideoGraph. It takes as input a video segment s
 We use python 2.7.15, provided by Anaconda 4.6.2, and we depend on the following python packages.
 - Keras 2.2.4
 - Tensorflow 1.10.1
-- PyTorch 1.0.1
 
 ### License
 
