@@ -28,7 +28,7 @@ from keras.layers import Dense, LeakyReLU, BatchNormalization, Dropout, Lambda, 
 
 from nets.keras_layers import ExpandDimsLayer, SqueezeLayer, TransposeLayer, MeanLayer, DepthwiseConv1DLayer, ReshapeLayer
 
-def graph_embedding(tensor, n_layers, c_avg_size, c_kernel_size, t_kernel_size, c_max_size, t_max_size):
+def graph_embedding(tensor, n_layers, n_avg_size, n_kernel_size, t_kernel_size, n_max_size, t_max_size):
     """
     Graph embedding.
     :param tensor:
@@ -37,21 +37,21 @@ def graph_embedding(tensor, n_layers, c_avg_size, c_kernel_size, t_kernel_size, 
     """
 
     input_shape = K.int_shape(tensor)
-    _, n_centroids, n_timesteps, side_dim, side_dim, n_channels_in = input_shape
+    _, n_odes, n_timesteps, side_dim, side_dim, n_channels_in = input_shape
 
     # hide temporal dimension
     tensor = TransposeLayer((0, 2, 1, 3, 4, 5))(tensor)  # (None, 64, 100, 7, 7, 1024)
-    tensor = ReshapeLayer((n_centroids, side_dim, side_dim, n_channels_in))(tensor)
+    tensor = ReshapeLayer((n_odes, side_dim, side_dim, n_channels_in))(tensor)
 
-    # pool over centroids
-    tensor = AveragePooling3D(pool_size=(c_avg_size, 1, 1), name='pool_n')(tensor)
-    _, n_centroids, side_dim, side_dim, n_channels_in = K.int_shape(tensor)
+    # pool over node
+    tensor = AveragePooling3D(pool_size=(n_avg_size, 1, 1), name='pool_n')(tensor)
+    _, n_odes, side_dim, side_dim, n_channels_in = K.int_shape(tensor)
 
-    # recover centroids dimension
-    tensor = ReshapeLayer((n_timesteps, n_centroids, side_dim, side_dim, n_channels_in))(tensor)  # (None, 64, 100, 7, 7, 1024)
+    # recover node dimension
+    tensor = ReshapeLayer((n_timesteps, n_odes, side_dim, side_dim, n_channels_in))(tensor)  # (None, 64, 100, 7, 7, 1024)
     tensor = TransposeLayer((0, 2, 1, 3, 4, 5))(tensor)  # (None, 100, 64, 7, 7, 1024)
 
-    # hide the centroids dimension
+    # hide the node dimension
     tensor = ReshapeLayer((n_timesteps, side_dim, side_dim, n_channels_in))(tensor)  # (None, 64, 7, 7, 1024)
 
     # 2 layers spatio-temporal conv
@@ -64,19 +64,19 @@ def graph_embedding(tensor, n_layers, c_avg_size, c_kernel_size, t_kernel_size, 
         # temporal conv
         tensor = DepthwiseConv1DLayer(t_kernel_size, padding='SAME', name='conv_t_%s' % (layer_id))(tensor)  # (None, 64, 7, 7, 1024)
 
-        # centroid conv
-        tensor = __convolve_nodes(tensor, n_centroids, layer_id, c_kernel_size)  # (None, 100, 7, 7, 1024)
+        # node conv
+        tensor = __convolve_nodes(tensor, n_odes, layer_id, n_kernel_size)  # (None, 100, 7, 7, 1024)
 
         # activation
         tensor = BatchNormalization()(tensor)
         tensor = LeakyReLU(alpha=0.2)(tensor)
 
-        # max_pool over centroids
-        tensor = MaxPooling3D(pool_size=(c_max_size, 1, 1), name='pool_n_%s' % (layer_id))(tensor)  # (None, 100, 7, 7, 1024)
-        _, n_centroids, side_dim, side_dim, n_channels_in = K.int_shape(tensor)
+        # max_pool over nodes
+        tensor = MaxPooling3D(pool_size=(n_max_size, 1, 1), name='pool_n_%s' % (layer_id))(tensor)  # (None, 100, 7, 7, 1024)
+        _, n_odes, side_dim, side_dim, n_channels_in = K.int_shape(tensor)
 
-        # get back temporal dimension and hide centroid dimension
-        tensor = ReshapeLayer((n_timesteps, n_centroids, side_dim, side_dim, n_channels_in))(tensor)  # (None, 64, 100, 7, 7, 1024)
+        # get back temporal dimension and hide node dimension
+        tensor = ReshapeLayer((n_timesteps, n_odes, side_dim, side_dim, n_channels_in))(tensor)  # (None, 64, 100, 7, 7, 1024)
         tensor = TransposeLayer((0, 2, 1, 3, 4, 5))(tensor)  # (None, 100, 64, 7, 7, 1024)
         tensor = ReshapeLayer((n_timesteps, side_dim, side_dim, n_channels_in))(tensor)  # (None, 64, 7, 7, 1024)
 
@@ -84,24 +84,24 @@ def graph_embedding(tensor, n_layers, c_avg_size, c_kernel_size, t_kernel_size, 
         tensor = MaxPooling3D(pool_size=(t_max_size, 1, 1), name='pool_t_%s' % (layer_id))(tensor)  # (None, 64, 7, 7, 1024)
         _, n_timesteps, side_dim, side_dim, n_channels_in = K.int_shape(tensor)  # (None, 64, 7, 7, 1024)
 
-    # recover centroids dimension
-    tensor = ReshapeLayer((n_centroids, n_timesteps, side_dim, side_dim, n_channels_in))(tensor)
+    # recover nodes dimension
+    tensor = ReshapeLayer((n_odes, n_timesteps, side_dim, side_dim, n_channels_in))(tensor)
 
     return tensor
 
-def node_attention(x, c, n_channels_in, activation_type='softmax'):
+def node_attention(x, n, n_channels_in, activation_type='softmax'):
     activation_types = ['relu', 'softmax', 'sigmoid']
     assert activation_type in activation_types, 'Sorry, unknown activation type: %s' % (activation_type)
 
     # expand for multiplication
-    c = ExpandDimsLayer(axis=0)(c)
+    n = ExpandDimsLayer(axis=0)(n)
 
     # phi path (Q) or (x)
     x = BatchNormalization()(x)
     phi = x  # (None, 64, 1024)
 
     # theta path (K) or (c)
-    theta = BatchNormalization()(c)  # (1, 100, 1024)
+    theta = BatchNormalization()(n)  # (1, 100, 1024)
     theta = Conv1D(n_channels_in, 1, padding='same', name='node_embedding')(theta)  # (1, 100, 1024)
 
     # f path (theta and phi) or (Q and K)
@@ -120,27 +120,27 @@ def node_attention(x, c, n_channels_in, activation_type='softmax'):
     f = TransposeLayer((0, 1, 2, 4, 3))(f)  # (None, 7, 7, 100, 64)
 
     # g path (V)
-    g = BatchNormalization()(c)
+    g = BatchNormalization()(n)
 
     y = Lambda(__tensor_multiplication, name='node_attenative')([f, g])  # (N, 100, 64, 7, 7, 1024)
     y = BatchNormalization()(y)
     y = LeakyReLU(alpha=0.2)(y)
     return y
 
-def __convolve_nodes(tensor, n_centroids, layer_id, kernel_size):
+def __convolve_nodes(tensor, n_nodes, layer_id, kernel_size):
     """
     Input size (None, 100, 7, 7, 1024)
     """
 
-    # unreveal centroids dimension
+    # unreveal nodes dimension
     _, n_timesteps, side_dim, side_dim, n_channels_in = K.int_shape(tensor)  # (None, 64, 7, 7, 1024)
-    tensor = ReshapeLayer((n_centroids, n_timesteps, side_dim, side_dim, n_channels_in))(tensor)  # (None, 100, 64, 7, 7, 1024)
+    tensor = ReshapeLayer((n_nodes, n_timesteps, side_dim, side_dim, n_channels_in))(tensor)  # (None, 100, 64, 7, 7, 1024)
 
     # hide temporal dimension
     tensor = TransposeLayer((0, 2, 1, 3, 4, 5))(tensor)  # (None, 64, 100, 7, 7, 1024)
-    tensor = ReshapeLayer((n_centroids, side_dim, side_dim, n_channels_in))(tensor)  # (None, 100, 7, 7, 1024)
+    tensor = ReshapeLayer((n_nodes, side_dim, side_dim, n_channels_in))(tensor)  # (None, 100, 7, 7, 1024)
 
-    # centroid conv
+    # node conv
     tensor = DepthwiseConv1DLayer(kernel_size, padding='SAME', name='conv_n_%s' % (layer_id))(tensor)  # (None, 100, 7, 7, 1024)
 
     return tensor

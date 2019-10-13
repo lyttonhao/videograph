@@ -35,8 +35,6 @@ from keras.layers import Input, BatchNormalization
 from keras.layers import Dense, LeakyReLU, Dropout, Activation, Conv3D
 from keras.optimizers import SGD, Adam
 from keras.models import Model
-from keras.utils import multi_gpu_utils
-from keras.callbacks import Callback
 
 from nets.keras_layers import MaxLayer, MeanLayer
 
@@ -63,7 +61,6 @@ def train_model_videograph():
     batch_size_tr = 20
     batch_size_te = 30
     n_epochs = 500
-    n_gpus = 1
     epoch_offset = 0
     model_name = 'classifier_%s' % (utils.timestamp())
     model_root_path = Pth('EPIC-Kitchens/models')
@@ -80,7 +77,7 @@ def train_model_videograph():
     # building the model
     print('... building model %s' % (model_name))
     t1 = time.time()
-    model = __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centroids, n_classes, input_shape, n_gpus=n_gpus)
+    model = __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centroids, n_classes, input_shape)
     t2 = time.time()
     duration = t2 - t1
     print (model.summary(line_length=130, positions=None, print_fn=None))
@@ -99,8 +96,8 @@ def train_model_videograph():
     n_te = len(x_te)
     n_batch_tr = utils.calc_num_batches(n_tr, batch_size_tr)
     n_batch_te = utils.calc_num_batches(n_te, batch_size_te)
-    print ('... [tr]: n, n_batch, batch_size, n_gpus: %d, %d, %d, %d' % (n_tr, n_batch_tr, batch_size_tr, n_gpus))
-    print ('... [te]: n, n_batch, batch_size, n_gpus: %d, %d, %d, %d' % (n_te, n_batch_te, batch_size_te, n_gpus))
+    print ('... [tr]: n, n_batch, batch_size: %d, %d, %d' % (n_tr, n_batch_tr, batch_size_tr))
+    print ('... [te]: n, n_batch, batch_size: %d, %d, %d' % (n_te, n_batch_te, batch_size_te))
     print (x_tr.shape)
     print (x_te.shape)
     print (y_tr.shape)
@@ -114,7 +111,7 @@ def train_model_videograph():
     print ('--- finish time')
     print (datetime.datetime.now())
 
-def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centroids, n_classes, input_shape_x, n_gpus):
+def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centroids, n_classes, input_shape_x):
     """
     Model
     """
@@ -134,9 +131,9 @@ def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centr
     t_max_size = 3
 
     # node kernel
-    c_kernel_size = 7
-    c_max_size = 3
-    c_avg_size = 4
+    n_kernel_size = 7
+    n_max_size = 3
+    n_avg_size = 4
 
     # space kernel
     s_kernel_size = 2
@@ -146,7 +143,7 @@ def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centr
 
     _, n_timesteps, side_dim, side_dim, n_channels_in = input_shape_x
     t_input_x = Input(shape=(n_timesteps, side_dim, side_dim, n_channels_in), name='input_x')  # (None, 64, 1024)
-    t_input_c = Input(tensor=tf.constant(centroids, dtype=tf.float32), name='input_n')  # (1, 100, 1024)
+    t_input_n = Input(tensor=tf.constant(centroids, dtype=tf.float32), name='input_n')  # (1, 100, 1024)
     tensor = t_input_x
 
     # spatial convolution
@@ -158,10 +155,10 @@ def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centr
     tensor = MaxLayer(axis=(2, 3), is_keep_dim=True, name='global_pool_s')(tensor)  # (None, 64, 7, 7, 1024)
 
     # node attention
-    tensor = videograph.node_attention(tensor, t_input_c, n_channels_in, activation_type='relu')  # (N, 100, 64, 7, 7, 1024)
+    tensor = videograph.node_attention(tensor, t_input_n, n_channels_in, activation_type='relu')  # (N, 100, 64, 7, 7, 1024)
 
     # graph embedding
-    tensor = videograph.graph_embedding(tensor, n_graph_layers, c_avg_size, c_kernel_size, t_kernel_size, c_max_size, t_max_size)  # (N, 100, 64, 7, 7, 1024)
+    tensor = videograph.graph_embedding(tensor, n_graph_layers, n_avg_size, n_kernel_size, t_kernel_size, n_max_size, t_max_size)  # (N, 100, 64, 7, 7, 1024)
 
     # centroid pooling
     tensor = MeanLayer(axis=(1,), name='global_pool_n')(tensor)
@@ -178,7 +175,7 @@ def __load_model_mlp_classifier_transformer_centroids_with_graph_embedding(centr
     tensor = Dense(n_classes)(tensor)
     t_output = Activation(output_activation)(tensor)
 
-    model = Model(input=[t_input_x, t_input_c], output=t_output)
+    model = Model(input=[t_input_x, t_input_n], output=t_output)
     model.compile(loss=loss, optimizer=optimizer)
     return model
 
