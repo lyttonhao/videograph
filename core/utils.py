@@ -33,7 +33,7 @@ import os
 import json
 import natsort
 
-from core import const
+from core import sobol, const
 
 # region Load and Dump
 
@@ -277,6 +277,11 @@ def print_array_joined(a):
 # endregion
 
 # region Misc
+
+def generate_centroids(n, dim, is_sobol=False):
+    # nodes as sobol sequence or random vectors
+    centroids = np.array(sobol.sobol_generate(dim, n)) if is_sobol else np.random.rand(n, dim)
+    return centroids
 
 def learn_manifold(manifold_type, feats, n_components=2):
     if manifold_type == 'tsne':

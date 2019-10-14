@@ -67,9 +67,12 @@ def train_model_videograph():
 
     nodes_path = Pth('EPIC-Kitchens/features/nodes_random_%d.pkl', (n_nodes,))
     features_path = Pth('EPIC-Kitchens/features/features_i3d_mixed_5c_%d_frames.h5', (n_frames_per_video,))
-    n_feat_maps, feat_map_side_dim = utils.get_model_feat_maps_info(model_type, feature_type)
-    input_shape = (None, n_timesteps, feat_map_side_dim, feat_map_side_dim, n_feat_maps)
-    nodes = utils.pkl_load(nodes_path)
+    n_channels, side_dim = utils.get_model_feat_maps_info(model_type, feature_type)
+    input_shape = (None, n_timesteps, side_dim, side_dim, n_channels)
+
+    # either load nodes, or generate them on the fly, but remeber to save them, as you need them in test time
+    # nodes = utils.pkl_load(nodes_path)
+    nodes = utils.generate_centroids(n_nodes, n_channels)
 
     print ('--- start time')
     print (datetime.datetime.now())
