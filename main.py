@@ -28,7 +28,6 @@ Main file of the project.
 from experiments import epic_kitchens
 epic_kitchens.train_model_videograph()
 
-
 # train videograph of features of epic_kitchens
 # from experiments import charades
 # charades.train_model_videograph()
