@@ -89,6 +89,8 @@ def train_model_videograph():
     # load data
     print ('... loading data: %s' % (features_path))
     t1 = time.time()
+    # features are extracting using datasets.epic_kitchens.i3d_keras_epic_kitchens()
+    # we use out-of-box i3d (pre-trained on kinetics, NOT fine-tuned on epic-kitchens) with last conv feature 7*7*1024 'mixed_5c'
     (x_tr, x_te) = utils.h5_load_multi(features_path, ['x_tr', 'x_te'])
     t2 = time.time()
 
